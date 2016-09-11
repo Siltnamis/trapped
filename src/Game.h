@@ -16,9 +16,10 @@ enum Entity_Enum    { E_Player, E_Enemy, E_Max};
 enum Shader_Enum    { Shader_Default, Shader_Max };
 //enum Model_Enum     { Model_Cube, Model_Grid, Model_Max };
 enum Shape_Enum     { Shape_Rect, Shape_Max };
-enum Texture_Enum   { Texture_Default, Texture_Player, Texture_Enemy, Texture_Max };
+enum Texture_Enum   { Texture_Default, Texture_Player, Texture_Enemy, 
+                        Texture_Wall, Texture_Max };
 enum Control_Enum   { CM_Jump, CM_Back, CM_Right, CM_Left};
-enum PState_Enum    { PS_InAir, PS_OnWall };
+enum PState_Enum    { PS_InAir, PS_OnWall, PS_OnLeftWall, PS_OnRightWall};
 
 
 struct Vertex
@@ -79,7 +80,7 @@ struct Renderer
     GLuint      vert_buffers[Shape_Max];
 };
 
-union Rectangle
+union Rect
 {
     struct
     {
@@ -108,14 +109,23 @@ struct Entity
         //player shit
         struct
         {
-            Rectangle rect;
-            int p_state;
+            Rect    rect;
+            int     p_state;
         };
         //enemy shit
         struct
         {
         };
     };
+};
+
+struct Wall
+{
+    int     shader_enum;
+    int     shape_enum; //is this reduntant?
+    int     texture_enum;
+    Rect    rect;
+    vec4    color;
 };
 
 //TODO remove
@@ -142,17 +152,19 @@ struct GameState
 {
     bool            quit;
     Controls        controls;
-    int             score;
-
-    Entity          entities[MAX_ENTITIES];
-    int             num_entities;
-    EnemySpawner    e_spawner;
-
-    mat3            projection;
     int             win_height;
     int             win_width;
+    mat3            projection;
+
+    int             score;
+    
+    Entity          entities[MAX_ENTITIES];
+    EnemySpawner    e_spawner;
+
+    Wall            left_wall;
+    Wall            right_wall;
+
+
 };
-
-
 
 #endif //INCLUDE_GAME_H

@@ -8,6 +8,7 @@ int initGame(Renderer* renderer, GameState* state, SDL_Window* window)
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
+        *renderer = {};
         //setup shader shit
         renderer->vert_shaders[Shader_Default] = "shaders/unlit.vert"; 
         renderer->frag_shaders[Shader_Default] = "shaders/unlit.frag"; 
@@ -50,6 +51,7 @@ int initGame(Renderer* renderer, GameState* state, SDL_Window* window)
 
         loadTexture2D(&renderer->textures[Texture_Player], "./textures/rsanic.png");
         loadTexture2D(&renderer->textures[Texture_Enemy], "./textures/rdorito.png");
+        loadTexture2D(&renderer->textures[Texture_Wall], "./textures/rmntdw.png");
         createWhiteTexture(&renderer->textures[Texture_Default]);
 
         //glViewport(0, 0, 100, 100);
@@ -75,17 +77,29 @@ int initGame(Renderer* renderer, GameState* state, SDL_Window* window)
         player->valid = true;
         player->p_state = 0;
 
-#if 0
-        state->player.shader_enum = Shader_Default;
-        state->player.shape_enum = Shape_Rect;
-        state->player.rect.size = {50, 50};
-        state->player.rect.position = {(w-50.f)/2.f, 0};
-#endif
+
         state->win_width = w;
         state->win_height = h;
 
         state->e_spawner.spawn_time = 1.f;
         state->e_spawner.clock.restart();
+
+        //left wall init
+        state->left_wall.shader_enum = Shader_Default;
+        state->left_wall.shape_enum = Shape_Rect;
+        state->left_wall.texture_enum = Texture_Wall;
+        state->left_wall.rect.position = {0, 0};
+        state->left_wall.rect.size = {50, 200};
+        state->left_wall.color = {1, 1, 1, 1};
+
+        //right wall init
+        state->right_wall.shader_enum = Shader_Default;
+        state->right_wall.shape_enum = Shape_Rect;
+        state->right_wall.texture_enum = Texture_Wall;
+        state->right_wall.rect.position = {w-75.f, 0};
+        state->right_wall.rect.size = {75, 200};
+        state->right_wall.color = {1, 1, 1, 1};
+
     }
 
     return 0;
@@ -161,10 +175,64 @@ void drawState(Renderer* renderer, GameState* state)
     glClearColor(0.2, 0.2, 0.3, 1);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, renderer->textures[Texture_Enemy]);
+    
 
-    {//draw rect
+    {//draw walls
+        
+
+        GLuint attrib_pos = renderer->attrib_in_pos;
+        GLuint attrib_uv = renderer->attrib_in_uv;
+
+        glEnableVertexAttribArray(attrib_pos);
+        glVertexAttribPointer(attrib_pos, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), 0);
+
+        glEnableVertexAttribArray(attrib_uv);
+        glVertexAttribPointer(attrib_uv, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), 
+                (const void*)offsetof(Vertex, uv));
+
+        mat3 model_mat = mat3_identity();
+        mat3 m;
+        model_mat.z.xy = state->left_wall.rect.position; 
+        model_mat.m00 = state->left_wall.rect.w;
+        model_mat.m11 = state->left_wall.rect.h;
+
+        m = state->projection*model_mat;
+
+        Shader* shader = &renderer->shaders[state->left_wall.shader_enum];
+        glUseProgram(shader->program);
+        glUniformMatrix3fv(shader->getUniform("mvp_mat"), 1, GL_FALSE, m.e);
+        glUniform4fv(shader->getUniform("color"), 1, &state->left_wall.color.e[0]);
+
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, renderer->textures[state->left_wall.texture_enum]);
+
+        glDrawArrays(GL_TRIANGLES, 0, 6);
+
+
+        model_mat.z.xy = state->right_wall.rect.position;
+        model_mat.m00 = state->right_wall.rect.w;
+        model_mat.m11 = state->right_wall.rect.h;
+        m = state->projection*model_mat;
+        shader = &renderer->shaders[state->right_wall.shader_enum];
+
+        glUseProgram(shader->program);
+        glUniformMatrix3fv(shader->getUniform("mvp_mat"), 1, GL_FALSE, m.e);
+        glUniform4fv(
+        shader->getUniform("color"), 1, &state->right_wall.color.e[0]);
+
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, renderer->textures[state->right_wall.texture_enum]);
+
+        glDrawArrays(GL_TRIANGLES, 0, 6);
+
+
+
+    }
+
+    {//draw enemies 
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, renderer->textures[Texture_Enemy]);
+
         glBindBuffer(GL_ARRAY_BUFFER, renderer->vert_buffers[Shape_Rect]);
 
         GLuint attrib_pos = renderer->attrib_in_pos;
@@ -340,6 +408,14 @@ void processEvent(GameState* state, SDL_Event* event, SDL_Window* window)
     }
 }
 
+static bool rectToRectCollision(Rect* A, Rect* B)
+{
+    return (A->x < B->x + B->w &&
+            A->x + A->w > B->x &&
+            A->y < B->y + B->h &&
+            A->y + A->h > B->y);
+}
+
 static void resolveCollisions(GameState* state)
 {
     int  p_state = state->entities[E_Player].p_state;
@@ -356,17 +432,19 @@ static void resolveCollisions(GameState* state)
             p_state &= ~(1 << PS_OnWall);
         }
     }
-    if(pos.x < 0.f){
-        pos.x = 0.f; 
+
+    //left wall detection
+    if(pos.x < state->left_wall.rect.x + state->left_wall.rect.w){
+        pos.x = state->left_wall.rect.x + state->left_wall.rect.w; 
         vel.x = 0.f;
         if(p_state & (1 << PS_InAir)){
             vel.y = -50;
             p_state |= 1 << PS_OnWall;
         }
-        
     }
-    if(pos.x + size.x > state->win_width){
-        pos.x = state->win_width - size.x;
+    //right wall
+    if(pos.x + size.x > state->right_wall.rect.x){
+        pos.x = state->right_wall.rect.x - size.x;
         vel.x = 0.f; 
         if(p_state & 1 << PS_InAir){
             vel.y = -50;
@@ -384,14 +462,24 @@ static void resolveCollisions(GameState* state)
             }
 
             //player-enemy collision
+#if 0
             if(player->rect.position.x < ent->rect.position.x + ent->rect.size.x &&
                 player->rect.position.x + player->rect.size.x > ent->rect.position.x &&
                 player->rect.position.y < ent->rect.position.y + ent->rect.size.y &&
                 player->rect.position.y + player->rect.size.y > ent->rect.position.y)
+#else
+            if(rectToRectCollision(&player->rect, &ent->rect))
+#endif
             {
-                printf("COLLISION WITH PLAYER KEK\n");
+                //printf("COLLISION WITH PLAYER KEK\n");
                 player->color = {1, 0, 1, 1};
                 //SDL_Delay(100);
+            }
+            
+            if(rectToRectCollision(&ent->rect, &state->right_wall.rect) ||
+                 rectToRectCollision(&ent->rect, &state->left_wall.rect)){
+                 ent->velocity = -ent->velocity*0.1f;
+                 ent->valid = false;
             }
 
             //ent collision  with walls
@@ -474,6 +562,6 @@ void processTick(GameState* state, float dt)
     resolveCollisions(state);
     spawnEnemy(&state->e_spawner, state);
 
-    printf("player %d\n", (int)player->p_state);
+    //printf("player %d\n", (int)player->p_state);
 }
 

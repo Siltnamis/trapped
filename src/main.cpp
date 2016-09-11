@@ -2,8 +2,14 @@
 
 #include "Game.h"
 
+#ifdef _WIN32
+static const char*  game_lib = "./game.dll";
+static const char*  game_lib_copy = "./game_cp.dll";
+#else
 static const char*  game_lib = "./game.so";
 static const char*  game_lib_copy = "./game_cp.so";
+#endif
+
 static uint64       game_lib_change_time = 0;
 static void*        game_lib_handle = NULL;
 
@@ -82,7 +88,7 @@ void loadGame()
                     game_lib_handle = NULL;
                     break; 
                 }
-                printf("failed to free lib %s, trying again\n", dlerror()); 
+                //printf("failed to free lib %s, trying again\n", dlerror()); 
             }
         }
         printf("test wait for close lib handle\n");
@@ -117,7 +123,7 @@ void loadGame()
             assert(processEvent && initGame && processTick && drawState);
              
         }else{
-            printf("%s\nfailed to laod lib %s\n", dlerror(), game_lib_copy);
+            //printf("%s\nfailed to laod lib %s\n", dlerror(), game_lib_copy);
             assert(game_lib_handle);
         }
         game_lib_change_time = new_change_time;
@@ -147,7 +153,11 @@ int main(int argc, char** argv)
     SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
     SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES, 0);
 
+#if 1
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
+#else
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_COMPATIBILITY);
+#endif
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
 
@@ -192,7 +202,7 @@ int main(int argc, char** argv)
     printf("\tVersion: %s\n", glGetString (GL_VERSION));
     printf("\tGLSL: %s\n", glGetString(GL_SHADING_LANGUAGE_VERSION));
     glEnable(GL_DEBUG_OUTPUT);
-    glDebugMessageCallback((GLDEBUGPROC)myGlMessageCallback, nullptr);
+    glDebugMessageCallback((GLDEBUGPROC)myGlMessageCallback, NULL);
 
     loadGame();
     initGame(&renderer, &game_state, window);
