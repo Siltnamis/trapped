@@ -1,4 +1,14 @@
+#ifdef __ANDROID__
+    #include "SDL.h"
+    #define AV_LIB_IMPLEMENTATION
+    #include "av.h"
+#undef AV_LIB_IMPLEMENTATION
+
+#else
 #include <SDL2/SDL.h>
+#endif
+
+
 
 #include "Game.h"
 
@@ -13,10 +23,12 @@ static const char*  game_lib_copy = "./game_cp.so";
 static uint64       game_lib_change_time = 0;
 static void*        game_lib_handle = NULL;
 
+#ifndef __ANDROID__
 int                 (*initGame)(Renderer*, GameState*, SDL_Window*);
 void                (*processEvent)(GameState*, SDL_Event*, SDL_Window*);
 void                (*processTick)(GameState*, float);
 void                (*drawState)(Renderer*, GameState*);
+#endif
 
 static const char*  default_title = "Sickest game 4Head";
 static int          default_height = 900;
@@ -34,45 +46,9 @@ static Renderer     renderer;
 static SDL_Window*   window;
 static SDL_GLContext context;
 
-#if 0
+#ifdef __ANDROID__
 void loadGame()
 {
-    //*(void**)(&initGame) =   (void*)GAME_API::initGame;
-    struct stat attr;
-    if((stat(game_lib, &attr) == 0) && (game_lib_change_time != attr.st_ino)){
-        if(game_lib_handle){
-            printf("freeing lib\n");
-            int free_status = freeLibrary(game_lib_handle);
-            //for(int i = 0; i < 1000; ++i){
-             //   if(free_status == 0){
-             //       game_lib_handle = NULL;
-             //       break; 
-             //   }
-             //   printf("failed to free lib %s, trying again\n", dlerror()); 
-            //}
-        }
-        SDL_Delay(100); //stupid delay because dlfree() wont release file handle
-
-        printf("loading lib %s\n", game_lib);
-        game_lib_handle = loadLibrary(game_lib);
-        if(game_lib_handle){
-            game_lib_change_time = attr.st_ino;
-            printf("getting function pointers\n");
-            *(void**)(&initGame) = getSymAddress(game_lib_handle,
-                                        "initGame"); 
-            *(void**)(&processEvent) = getSymAddress(game_lib_handle,
-                                        "processEvent");
-            *(void**)(&processTick) = getSymAddress(game_lib_handle,
-                                        "processTick");
-            *(void**)(&drawState) = getSymAddress(game_lib_handle, 
-                                        "drawState");
-            assert(processEvent && initGame && processTick && drawState);
-             
-        }else{
-            printf("%s\nfailed to laod lib %s\n", dlerror(), game_lib);
-            assert(game_lib_handle);
-        }
-    }
 
 }
 #else
@@ -181,14 +157,10 @@ int main(int argc, char** argv)
                 SDL_WINDOWPOS_CENTERED, width, height,
                 SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE);
     context = SDL_GL_CreateContext(window);
+
+#ifndef __ANDROID__
     glewExperimental = GL_TRUE;
     GLenum status = glewInit();
-
-    int st = SDL_GL_SetSwapInterval(0);
-    if(st == -1){
-        printf("failed to disable vsync, setting tick_rate to default: %d\n", 60);
-        tick_rate = 60;
-    }
 
     if(status != GLEW_OK){
         SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "Init error",
@@ -196,14 +168,22 @@ int main(int argc, char** argv)
         return -1;
     }
 
+    glEnable(GL_DEBUG_OUTPUT);
+    glDebugMessageCallback((GLDEBUGPROC)myGlMessageCallback, NULL);
     printf("\tUsing glew %s\n", glewGetString(GLEW_VERSION));
+#endif
+
     printf("\tVendor: %s\n", glGetString (GL_VENDOR));
     printf("\tRenderer: %s\n", glGetString (GL_RENDERER));
     printf("\tVersion: %s\n", glGetString (GL_VERSION));
     printf("\tGLSL: %s\n", glGetString(GL_SHADING_LANGUAGE_VERSION));
-    glEnable(GL_DEBUG_OUTPUT);
-    glDebugMessageCallback((GLDEBUGPROC)myGlMessageCallback, NULL);
 
+    int st = SDL_GL_SetSwapInterval(0);
+    if(st == -1){
+        printf("failed to disable vsync, setting tick_rate to default: %d\n", 60);
+        tick_rate = 60;
+    }
+    
     loadGame();
     initGame(&renderer, &game_state, window);
     
@@ -235,7 +215,9 @@ int main(int argc, char** argv)
             accumulator_time -= dt;
             ++frames;
         }else{
+#ifndef __ANDROID__
             SDL_Delay((int)((dt-accumulator_time)*1000.f));
+#endif
         }
         if(perf_clock.time() > 1.f){
             float avg_time = perf_time/frames; 
@@ -246,8 +228,6 @@ int main(int argc, char** argv)
         }
     }
     SDL_Quit();
-
-
 
     return 0;
 }

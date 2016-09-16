@@ -2,6 +2,44 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 //
+#ifdef __ANDROID__
+#include "SDL.h"
+int loadImage(Image* image, const char* file_name)
+{
+    SDL_RWops* file = SDL_RWFromFile(file_name, "rb"); 
+    if(file != NULL){
+        int64 size = SDL_RWsize(file);
+        if(size != -1){
+            char* buffer = (char*)malloc(size+1);
+            if(buffer != NULL){
+                int64 read_size = SDL_RWread(file, buffer, 1, size);
+                if(read_size == size){
+
+                    image->data =(char*)stbi_load_from_memory((const unsigned char*)buffer,
+                           size, &image->w, &image->h, &image->components, 4); 
+                    if(image->data != NULL)
+                        return 0;
+                    else
+                        return -1;
+
+                }else{
+                    free(buffer);
+                    SDL_RWclose(file);
+                    return -1;
+                }
+            }else{
+                SDL_RWclose(file);
+                return -1;
+            }
+        }else{
+            SDL_RWclose(file);
+            return -1;
+        }
+    }else{
+        return -1;
+    }
+}
+#else
 int loadImage(Image* image, const char* file_name)
 {
     image->data = (char*)stbi_load(file_name, &image->w, &image->h, &image->components, 4);
@@ -10,6 +48,7 @@ int loadImage(Image* image, const char* file_name)
     }
     return 0;
 }
+#endif
 
 void freeImage(Image* image)
 {

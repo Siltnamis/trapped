@@ -68,7 +68,7 @@ int checkArg(int argc, char** argv, const char* argument)
 int copyFile(const char* source, const char* destination)
 {
 
-    printf("copying %s to %s\n", source, destination);
+    //printf("copying %s to %s\n", source, destination);
     FILE* src = fopen(source, "rb");
     FILE* dst = fopen(destination, "wb+");
     int status = 0;
@@ -102,7 +102,7 @@ exit:
     fclose(src);
     fclose(dst);
     if(buffer) free(buffer);
-    printf("done copying %d original size%ld size:%ld\n\n", status, size, bytes_copyed);
+    //printf("done copying %d original size%ld size:%ld\n\n", status, size, bytes_copyed);
     return status;
 }
 
@@ -116,7 +116,7 @@ uint64 fileChangeTime(const char* path)
 
 void* loadLibrary(const char* file_name)
 {
-    printf("loading fucking lib %s \n", file_name);
+    //printf("loading fucking lib %s \n", file_name);
     return dlopen(file_name, RTLD_NOW);
 }
 
