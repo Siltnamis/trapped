@@ -54,84 +54,10 @@ static void closeGame()
     //TODO: FREE SHADERS AND OTHER RESOURCES???????????????
 }
 
-extern "C"
-int initGame(Renderer* renderer, GameState* state, SDL_Window* window)
+
+static void resetGameStateDefaults(GameState* state)
 {
-    //init renderer
-    {
-        glEnable(GL_BLEND);
-        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-        glClearColor(1, 0, 1, 1);
-
-        *renderer = {};
-        //setup shader shit
-        renderer->vert_shaders[Shader_Default] = "shaders/unlit.vert"; 
-        renderer->frag_shaders[Shader_Default] = "shaders/unlit.frag"; 
-        renderer->vs_change_times[Shader_Default] = 0;
-        renderer->fs_change_times[Shader_Default] = 0;
-        loadShader(renderer, vertex_shader_src, fragment_shader_src, Shader_Default);
-
-        //get rectangle vertices/uvs to gpu
-        Vertex v[6] =  {    { {0.f, 1.f}, {0.f, 1.f} },
-                            { {0.f, 0.f}, {0.f, 0.f} },
-                            { {1.f, 0.f}, {1.f, 0.f} },
-
-                            { {0.f, 1.f}, {0.f, 1.f} },
-                            { {1.f, 0.f}, {1.f, 0.f} },
-                            { {1.f, 1.f}, {1.f, 1.f} }
-                        };
-
-        GLuint vert_buffer;  
-        glGenBuffers(1, &vert_buffer);
-        glBindBuffer(GL_ARRAY_BUFFER, vert_buffer);
-        glBufferData(GL_ARRAY_BUFFER, 6*sizeof(Vertex), &v, GL_STATIC_DRAW);        
-
-        renderer->vert_buffers[Shape_Rect] = vert_buffer;
-
-        //setup frame buffer texture shit
-        glGenFramebuffers(1, &renderer->frame_buffer);
-        glBindFramebuffer(GL_FRAMEBUFFER, renderer->frame_buffer);
-
-        GLuint* fb_tex = &renderer->textures[Texture_FB];
-        glGenTextures(1, fb_tex);
-        glBindTexture(GL_TEXTURE_2D, *fb_tex);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, 
-                frame_buff_w, frame_buff_h, 0, GL_RGB, GL_UNSIGNED_BYTE, 0);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-                    
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, 
-                GL_TEXTURE_2D, *fb_tex, 0);
-        
-        if(glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE){
-            printf("frame buff is incomplete \n");
-            return -1;
-        }
-
-        loadTexture2D(&renderer->textures[Texture_PlayerGround], 
-                "textures/player_ground.png");
-        loadTexture2D(&renderer->textures[Texture_PlayerAir], 
-                "textures/player_air.png");
-        loadTexture2D(&renderer->textures[Texture_PlayerDead], 
-                "textures/player_dead.png");
-        loadTexture2D(&renderer->textures[Texture_Enemy], "textures/enemy.png");
-        loadTexture2D(&renderer->textures[Texture_Spike], "textures/spike.png");
-        loadTexture2D(&renderer->textures[Texture_Wall], "textures/rmntdw.png");
-        loadTexture2D(&renderer->textures[Texture_BackGround], "textures/bg.png");
-        createWhiteTexture(&renderer->textures[Texture_Default]);
-    }
-
-    //init GameState
-    {
-        *state = {};
-
-        state->quit = false;
-        state->focused = false;
-        state->paused = false;
-        int w, h;
-        SDL_GetWindowSize(window, &w, &h);
-        state->win_width = w;
-        state->win_height = h;
+        state->dead= false;
         state->game_time = 0.f;
         state->projection = mat3_ortho(0, frame_buff_w, 0, frame_buff_h);
 
@@ -189,6 +115,118 @@ int initGame(Renderer* renderer, GameState* state, SDL_Window* window)
         state->spikes[1].rect.size = {state->right_wall.rect.w, 
             frame_buff_h-state->right_wall.rect.h};
 
+};
+
+extern "C"
+int initGame(Renderer* renderer, GameState* state, SDL_Window* window)
+{
+    //init renderer
+    {
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        glClearColor(1, 1, 1, 1);
+
+        *renderer = {};
+        //setup shader shit
+        renderer->vert_shaders[Shader_Default] = "shaders/unlit.vert"; 
+        renderer->frag_shaders[Shader_Default] = "shaders/unlit.frag"; 
+        renderer->vs_change_times[Shader_Default] = 0;
+        renderer->fs_change_times[Shader_Default] = 0;
+        loadShader(renderer, vertex_shader_src, fragment_shader_src, Shader_Default);
+
+        //get rectangle vertices/uvs to gpu
+#if 0
+        Vertex v[6] =  {    { {0.0003f, 0.9997f}, {0.0003f, 0.9997f} },
+                            { {0.0003f, 0.0003f}, {0.0003f, 0.0003f} },
+                            { {0.9997f, 0.0003f}, {0.9997f, 0.0003f} },
+
+                            { {0.0003f, 0.9997f}, {0.0003f, 0.9997f} },
+                            { {0.9997f, 0.0003f}, {0.9997f, 0.0003f} },
+                            { {0.9997f, 0.9997f}, {0.9997f, 0.9997f} }
+                        };
+#else
+        Vertex v[6] =  {    { {0.f, 1.f}, {0.f, 1.f} },
+                            { {0.f, 0.f}, {0.f, 0.f} },
+                            { {1.f, 0.f}, {1.f, 0.f} },
+
+                            { {0.f, 1.f}, {0.f, 1.f} },
+                            { {1.f, 0.f}, {1.f, 0.f} },
+                            { {1.f, 1.f}, {1.f, 1.f} }
+                        };
+
+#endif
+
+        GLuint vert_buffer;  
+        glGenBuffers(1, &vert_buffer);
+        glBindBuffer(GL_ARRAY_BUFFER, vert_buffer);
+        glBufferData(GL_ARRAY_BUFFER, 6*sizeof(Vertex), &v, GL_STATIC_DRAW);        
+
+        renderer->vert_buffers[Shape_Rect] = vert_buffer;
+
+        //setup frame buffer texture shit
+        glGenFramebuffers(1, &renderer->frame_buffer);
+        glBindFramebuffer(GL_FRAMEBUFFER, renderer->frame_buffer);
+
+        GLuint* fb_tex = &renderer->textures[Texture_FB];
+        glGenTextures(1, fb_tex);
+        glBindTexture(GL_TEXTURE_2D, *fb_tex);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, 
+                frame_buff_w, frame_buff_h, 0, GL_RGB, GL_UNSIGNED_BYTE, 0);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+                    
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, 
+                GL_TEXTURE_2D, *fb_tex, 0);
+        
+        if(glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE){
+            printf("frame buff is incomplete \n");
+            return -1;
+        }
+
+        loadTexture2D(&renderer->textures[Texture_PlayerGround], 
+                "textures/player_ground.png");
+        loadTexture2D(&renderer->textures[Texture_PlayerAir], 
+                "textures/player_air.png");
+        loadTexture2D(&renderer->textures[Texture_PlayerDead], 
+                "textures/player_dead.png");
+        loadTexture2D(&renderer->textures[Texture_EnemyL], "textures/enemyl.png");
+        loadTexture2D(&renderer->textures[Texture_EnemyR], "textures/enemyr.png");
+        loadTexture2D(&renderer->textures[Texture_Spike], "textures/spike.png");
+        loadTexture2D(&renderer->textures[Texture_Wall], "textures/rmntdw.png");
+        loadTexture2D(&renderer->textures[Texture_BackGround], "textures/bg.png");
+        createWhiteTexture(&renderer->textures[Texture_Default]);
+        
+        loadTexture2D(&renderer->textures[Texture_Digit0], "textures/digit0.png");
+        loadTexture2D(&renderer->textures[Texture_Digit1], "textures/digit1.png");
+        loadTexture2D(&renderer->textures[Texture_Digit2], "textures/digit2.png");
+        loadTexture2D(&renderer->textures[Texture_Digit3], "textures/digit3.png");
+        loadTexture2D(&renderer->textures[Texture_Digit4], "textures/digit4.png");
+        loadTexture2D(&renderer->textures[Texture_Digit5], "textures/digit5.png");
+        loadTexture2D(&renderer->textures[Texture_Digit6], "textures/digit6.png");
+        loadTexture2D(&renderer->textures[Texture_Digit7], "textures/digit7.png");
+        loadTexture2D(&renderer->textures[Texture_Digit8], "textures/digit8.png");
+        loadTexture2D(&renderer->textures[Texture_Digit9], "textures/digit9.png");
+
+        loadTexture2D(&renderer->textures[Texture_Score], "textures/score.png");
+        loadTexture2D(&renderer->textures[Texture_HScore], "textures/hscore.png");
+
+        loadTexture2D(&renderer->textures[Texture_DeathScreen], "textures/dscreen.png");
+        
+    }
+
+    //init GameState
+    {
+        *state = {};
+
+        state->quit = false;
+        state->focused = false;
+        int w, h;
+        SDL_GetWindowSize(window, &w, &h);
+        state->win_width = w;
+        state->win_height = h;
+
+        resetGameStateDefaults(state); 
+
         for(int i = 0; i < SDL_NumJoysticks(); ++i){
             state->accel = SDL_JoystickOpen(i);
             if( SDL_JoystickNumAxes(state->accel) != 0 ){
@@ -209,48 +247,11 @@ int initGame(Renderer* renderer, GameState* state, SDL_Window* window)
 }
 
 static void
-resetStateAfterPause(GameState* state)
+resetStateAfterDeath(GameState* state)
 {
-    state->quit = false;
-    state->paused = false;
+    resetGameStateDefaults(state); 
 
-    Entity* player = &state->entities[E_Player];
-    player->type = E_Player;
-    player->valid = true;
-    player->shader_enum = Shader_Default;
-    player->shape_enum = Shape_Rect;
-    player->texture_enum = Texture_PlayerGround;
-    player->rect.size = default_player_size;
-    player->rect.position = default_player_pos;
-    player->velocity = {};
-    //player->color = {0.7, 0.1, 0.8, 1};
-    player->color = {1, 1, 1, 1};
-    player->p_state = 0;
-    
-    state->e_spawner.spawn_time = 1.f;
-    state->e_spawner.clock.restart();
-    state->spawn_increase_time = 0.f;
-    state->spawn_increase_rate = 1.f;
-
-    //left wall init
-    state->left_wall.shader_enum = Shader_Default;
-    state->left_wall.shape_enum = Shape_Rect;
-    //state->left_wall.texture_enum = Texture_Wall;
-    state->left_wall.texture_enum = Texture_Default;
-    state->left_wall.rect.position = default_rwall_pos;
-    state->left_wall.rect.size = default_rwall_size;
-    //state->left_wall.color = {1, 1, 1, 1};
-    state->left_wall.color = {0.9f, 0.04f, 0.51f, 1};
-
-    //right wall init
-    state->right_wall.shader_enum = Shader_Default;
-    state->right_wall.shape_enum = Shape_Rect;
-    //state->right_wall.texture_enum = Texture_Wall;
-    state->right_wall.texture_enum = Texture_Default;
-    state->right_wall.rect.position = default_lwall_pos;
-    state->right_wall.rect.size = default_lwall_size;
-    //state->right_wall.color = {1, 1, 1, 1};
-    state->right_wall.color = {0.9f, 0.04f, 0.51f, 1};
+    state->score = {};
 
     for(int i = 1; i < MAX_ENTITIES; ++i){
         state->entities[i].valid = false;
@@ -428,11 +429,11 @@ void drawState(Renderer* renderer, GameState* state)
             if(i == 1){
                 model_mat.z.xy = {state->spikes[i].rect.x+state->spikes[i].rect.w,
                                     state->spikes[i].rect.y};
-                model_mat.m00 = -state->spikes[i].rect.w;
+                model_mat.m00 = -state->spikes[i].rect.w-10;
             }
             else{
                 model_mat.z.xy = state->spikes[i].rect.position;
-                model_mat.m00 = state->spikes[i].rect.w;
+                model_mat.m00 = state->spikes[i].rect.w+10;
             }
             model_mat.m11 = state->spikes[i].rect.h;
             m = state->projection*model_mat;   
@@ -484,6 +485,172 @@ void drawState(Renderer* renderer, GameState* state)
         }
 
     }//draw entities
+
+    {//draw fucking score
+
+        glBindBuffer(GL_ARRAY_BUFFER, renderer->vert_buffers[Shape_Rect]);
+
+        glEnableVertexAttribArray(attrib_pos);
+        glVertexAttribPointer(attrib_pos, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), 0);
+
+        glEnableVertexAttribArray(attrib_uv);
+        glVertexAttribPointer(attrib_uv, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), 
+                (const void*)offsetof(Vertex, uv));
+
+        int hscore = state->high_score;
+        //hscore = state->score;
+        //score = 121151;
+        //printf("score: %d\n", score);
+        vec2 size = {15, 30};
+        for(int i = 1; i <= MAX_DIGITS; ++i){
+            int digit = hscore%10; 
+            //printf("digit %d\n", digit);
+            //model_mat.z.xy = {ent->rect.position.x, ent->rect.position.y};
+            model_mat.m00 = size.x;
+            if(digit == 1){
+                model_mat.m00 = 10;
+            }
+            model_mat.m11 = size.y;
+            model_mat.z.xy = {frame_buff_w - (size.x + 2)*i - 45, 
+                frame_buff_h - size.y - 10};
+
+            m = state->projection*model_mat;
+
+            vec4 color = {1, 1, 1, 1};
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, renderer->textures[Texture_Digit0+digit]);
+
+            glUseProgram(renderer->shaders[Shader_Default].program);
+            glUniformMatrix3fv(
+                renderer->shaders[Shader_Default].getUniform("mvp_mat"),
+                1, GL_FALSE, m.e);
+            glUniform4fv(
+                renderer->shaders[Shader_Default].getUniform("color"),
+                1, &color.e[0]);
+            glDrawArrays(GL_TRIANGLES, 0, 6);
+
+            hscore /= 10;
+        }
+
+        //draw highscore text
+        vec2 hsize = {180, 30};
+        vec2 hpos = {(frame_buff_w - (size.x + 2)*MAX_DIGITS - 55 - hsize.x), 
+            frame_buff_h - hsize.y - 13};
+        model_mat.m00 = hsize.x;
+        model_mat.m11 = hsize.y;
+        model_mat.z.xy = hpos;
+
+        m = state->projection*model_mat;
+
+        vec4 color = {1, 1, 1, 1};
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, renderer->textures[Texture_HScore]);
+
+        glUseProgram(renderer->shaders[Shader_Default].program);
+        glUniformMatrix3fv(
+            renderer->shaders[Shader_Default].getUniform("mvp_mat"),
+            1, GL_FALSE, m.e);
+        glUniform4fv(
+            renderer->shaders[Shader_Default].getUniform("color"),
+            1, &color.e[0]);
+        glDrawArrays(GL_TRIANGLES, 0, 6);
+
+
+        //draw score text
+        vec2 stsize = {140, 45};
+        vec2 stpos = {(frame_buff_w - stsize.x)/2, frame_buff_h - 100 - stsize.y};
+
+        model_mat.m00 = stsize.x;
+        model_mat.m11 = stsize.y;
+        model_mat.z.xy = stpos; 
+
+        m = state->projection*model_mat;
+
+        color = {1, 1, 1, 1};
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, renderer->textures[Texture_Score]);
+
+        glUseProgram(renderer->shaders[Shader_Default].program);
+        glUniformMatrix3fv(
+            renderer->shaders[Shader_Default].getUniform("mvp_mat"),
+            1, GL_FALSE, m.e);
+        glUniform4fv(
+            renderer->shaders[Shader_Default].getUniform("color"),
+            1, &color.e[0]);
+        glDrawArrays(GL_TRIANGLES, 0, 6);
+
+        //draw score digits
+        
+        int score = state->score; 
+        int digits = 1;
+        for(int i = 0; i < MAX_DIGITS; ++i){
+            score /= 10;
+            if(score > 0){
+                ++digits;
+            }
+        }
+        
+        score = state->score;
+        vec2 sdsize = {20, 40};
+        for(int i = 0; i < digits; ++i){
+            int digit = score%10;
+            score /= 10;
+
+            model_mat.m00 = sdsize.x;
+            if(digit == 1){
+                model_mat.m00 = sdsize.x*0.75;
+            }
+            model_mat.m11 = sdsize.y;
+
+            model_mat.z.xy = {frame_buff_w/2 - (sdsize.x + 4)*i + 
+                (sdsize.x + 4)*((digits/2.f) - 1), 
+                stpos.y - sdsize.y - 10};
+
+
+            m = state->projection*model_mat;
+
+            color = {1, 1, 1, 1};
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, renderer->textures[Texture_Digit0+digit]);
+
+            glUseProgram(renderer->shaders[Shader_Default].program);
+            glUniformMatrix3fv(
+                renderer->shaders[Shader_Default].getUniform("mvp_mat"),
+                1, GL_FALSE, m.e);
+            glUniform4fv(
+                renderer->shaders[Shader_Default].getUniform("color"),
+                1, &color.e[0]);
+            glDrawArrays(GL_TRIANGLES, 0, 6);
+        }
+
+        //move this to processTick
+        //if(state->score > state->high_score) state->high_score = state->score;
+
+    }//draw fucking score
+
+    if(state->dead)
+    {//draw death screen
+        
+        vec2 size = {500, 500}; 
+        model_mat.m00 = size.x;
+        model_mat.m11 = size.y;
+        model_mat.z.xy = {(frame_buff_w-size.x)/2, (frame_buff_h-size.y)/2+50};
+
+        m = state->projection*model_mat;
+
+        vec4 color = {1, 1, 1, 1};
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, renderer->textures[Texture_DeathScreen]);
+
+        glUseProgram(renderer->shaders[Shader_Default].program);
+        glUniformMatrix3fv(
+            renderer->shaders[Shader_Default].getUniform("mvp_mat"),
+            1, GL_FALSE, m.e);
+        glUniform4fv(
+            renderer->shaders[Shader_Default].getUniform("color"),
+            1, &color.e[0]);
+        glDrawArrays(GL_TRIANGLES, 0, 6);
+    }//
     
     {//draw framebuffer texture to screen
 
@@ -537,6 +704,7 @@ static bool pStateCheck(int p_state, int state_enum)
 extern "C"
 void processEvent(GameState* state, SDL_Event* event, SDL_Window* window)
 {
+
     Entity* player = &state->entities[E_Player];
     switch (event->type)
     {
@@ -572,7 +740,7 @@ void processEvent(GameState* state, SDL_Event* event, SDL_Window* window)
         {
             act_press:
             //event->button.button = SDL_BUTTON_LEFT;
-            if(state->paused == false){
+            if(state->dead == false){
                 if(event->button.button == SDL_BUTTON_LEFT){
                     if( !pStateCheck(player->p_state, PS_InAir) ){
                         player->velocity.y = 550;
@@ -602,8 +770,8 @@ void processEvent(GameState* state, SDL_Event* event, SDL_Window* window)
                     }
                 }
             } else {
-                state->paused = false;
-                resetStateAfterPause(state);
+                state->dead = false;
+                resetStateAfterDeath(state);
             }
         }break;
 
@@ -616,7 +784,7 @@ void processEvent(GameState* state, SDL_Event* event, SDL_Window* window)
 
         case SDL_MOUSEMOTION:
         {
-            if(state->paused == false){
+            if(state->dead == false){
                 float ox = 0;
                 float oy = 0;
                 if(state->focused){
@@ -686,7 +854,7 @@ static void resolveCollisions(GameState* state)
     for(int i = 0; i < 2; ++i){
         if(rectToRectCollision(&player->rect, &state->spikes[i].rect)){
             player->texture_enum = Texture_PlayerDead;
-            state->paused = true;
+            state->dead = true;
         }
     }
     
@@ -696,6 +864,7 @@ static void resolveCollisions(GameState* state)
         if(ent->valid){
             if(ent->rect.position.y < -ent->rect.size.y/2.f){
                 ent->valid = false;
+                state->score += 1;
                 break;
             }
 
@@ -712,7 +881,7 @@ static void resolveCollisions(GameState* state)
                 //printf("COLLISION WITH PLAYER KEK\n");
                 //player->color = {1, 0, 1, 1};
                 player->texture_enum = Texture_PlayerDead;
-                state->paused = true;
+                state->dead = true;
                 state->e_spawner.spawn_time = 1.f;
                 //SDL_Delay(100);
             }
@@ -721,22 +890,26 @@ static void resolveCollisions(GameState* state)
             {
                 ent->rect.x = state->right_wall.rect.x - ent->rect.w;
                 ent->velocity.x = -ent->velocity.x;
+                ent->texture_enum = Texture_EnemyL;
             }
             if( rectToRectCollision(&ent->rect, &state->left_wall.rect)){
                  //ent->velocity = -ent->velocity*0.1f;
                 ent->rect.x = state->left_wall.rect.x + state->left_wall.rect.w;
                 ent->velocity.x = -ent->velocity.x;
+                ent->texture_enum = Texture_EnemyR;
                  //ent->valid = false;
             }
             if( rectToRectCollision(&ent->rect, &state->spikes[0].rect))
             {
                 ent->rect.x = state->spikes[0].rect.x + state->spikes[0].rect.w;
                 ent->velocity.x = -ent->velocity.x;
+                ent->texture_enum = Texture_EnemyR;
 
             }
             if( rectToRectCollision(&ent->rect, &state->spikes[1].rect)){
                 ent->rect.x = state->spikes[1].rect.x - ent->rect.w;
                 ent->velocity.x = -ent->velocity.x;
+                ent->texture_enum = Texture_EnemyL;
             }
 
 #if 0       //not needed
@@ -749,7 +922,7 @@ static void resolveCollisions(GameState* state)
 #endif
         }
     }
-
+    //printf("SCORE LEL %d\n", state->score.score);
     state->entities[E_Player].rect.position = pos;
     state->entities[E_Player].velocity = vel;
 }
@@ -765,7 +938,7 @@ static void spawnEnemy(EnemySpawner* spawner, GameState* state)
                 ent->valid = true;
                 ent->shader_enum = Shader_Default;
                 ent->shape_enum = Shape_Rect;
-                ent->texture_enum = Texture_Enemy;
+                //ent->texture_enum = Texture_Enemy;
 
                 //ent->position = {((float)(rand()%1000)/1000.f)*(frame_buff_w-30.f),
                 //                    (float)frame_buff_h};
@@ -779,9 +952,11 @@ static void spawnEnemy(EnemySpawner* spawner, GameState* state)
                 ent->color = {rx, ry, 0.2f, 1};
                 //ent->color = {1, 1, 1, 1};
                 int sign = rand()%2;
-                if(sign == 0)
-                //if(ent->position.x > (state->win_width-30.f)/2.f)
+                if(sign == 0){
                     rx = -rx;
+                    ent->texture_enum = Texture_EnemyL;
+                }else 
+                    ent->texture_enum = Texture_EnemyR;
 
                 ent->velocity = {rx*300, 0};
 
@@ -796,7 +971,8 @@ static void spawnEnemy(EnemySpawner* spawner, GameState* state)
 extern "C"
 void processTick(GameState* state, float dt)
 {
-    if(state->paused == false){
+    if(state->score > state->high_score) state->high_score = state->score;
+    if(state->dead == false){
         Entity* player = &state->entities[E_Player];
         if( !pStateCheck(player->p_state, PS_OnWall) && state->accel != NULL){
             int16 xaxis = SDL_JoystickGetAxis(state->accel, 0);

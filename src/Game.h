@@ -18,13 +18,23 @@
 #include "Texture.h"
 #include "ShaderProgram.h"
 
+//max digits to display for score
+#define MAX_DIGITS 5 
+
 enum Entity_Enum    { E_Player, E_Enemy, E_Max};
 enum Shader_Enum    { Shader_Default, Shader_Max };
 enum Shape_Enum     { Shape_Rect, Shape_Max };
 enum Texture_Enum   { Texture_Default, Texture_PlayerGround, Texture_PlayerAir, 
-                        Texture_PlayerDead, Texture_Enemy, Texture_Spike,
+                        Texture_PlayerDead, Texture_EnemyR, Texture_EnemyL, 
+                        Texture_Spike,
+                        Texture_Digit0, Texture_Digit1, Texture_Digit2,
+                        Texture_Digit3, Texture_Digit4, Texture_Digit5,
+                        Texture_Digit6, Texture_Digit7, Texture_Digit8,
+                        Texture_Digit9, Texture_Score, Texture_HScore,
                         Texture_Wall, Texture_BackGround, 
-                        Texture_FB, Texture_Max };
+                        Texture_FB, 
+                        Texture_DeathScreen,
+                        Texture_Max };
 enum Control_Enum   { CM_Jump, CM_Back, CM_Right, CM_Left };
 enum PState_Enum    { PS_InAir, PS_OnWall, PS_OnLeftWall, PS_OnRightWall };
 
@@ -144,22 +154,20 @@ struct EnemySpawner
     float   spawn_time;
 };
 
-struct Score
-{
-    int     score;
-};
 
 #define MAX_ENTITIES 200
 struct GameState
 {
     bool            quit; //possibly encode other states (menu/death/etc..)
     bool            focused; //  pack everything into int
-    bool            paused;
+    bool            dead;
+
+    int             score;
+    int             high_score;
 
     float           game_time;
     int             win_height;
     int             win_width;
-    int             score;
     mat3            projection;
     
     Entity          entities[MAX_ENTITIES];

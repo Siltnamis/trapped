@@ -129,13 +129,18 @@ int main(int argc, char** argv)
     SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
     SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES, 0);
 
+//#ifdef __ANDROID__ 
 #if 1
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
-#else
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_COMPATIBILITY);
-#endif
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
+#else
+    //SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_COMPATIBILITY);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
+#endif
+    
 
     
 
@@ -178,6 +183,7 @@ int main(int argc, char** argv)
     printf("\tVersion: %s\n", glGetString (GL_VERSION));
     printf("\tGLSL: %s\n", glGetString(GL_SHADING_LANGUAGE_VERSION));
 
+    SDL_Log("DISABLING VSYNC LUL\n");
     int st = SDL_GL_SetSwapInterval(0);
     if(st == -1){
         printf("failed to disable vsync, setting tick_rate to default: %d\n", 60);
@@ -198,6 +204,8 @@ int main(int argc, char** argv)
     
     loop_clock.start();
     perf_clock.start();
+    SDL_Log("WTFFSFASDS\n");
+    SDL_Log("STARTING TEST\n");
     while(!game_state.quit){
         accumulator_time = loop_clock.time();
         loadGame();
@@ -222,6 +230,7 @@ int main(int argc, char** argv)
         if(perf_clock.time() > 1.f){
             float avg_time = perf_time/frames; 
             printf("fps: %d   avg time: %f\n", frames, avg_time);
+            SDL_Log("fps: %d   avg time: %f\n", frames, avg_time);
             perf_time = 0;
             frames = 0;
             perf_clock.restart();
