@@ -204,8 +204,6 @@ int main(int argc, char** argv)
     
     loop_clock.start();
     perf_clock.start();
-    SDL_Log("WTFFSFASDS\n");
-    SDL_Log("STARTING TEST\n");
     while(!game_state.quit){
         accumulator_time = loop_clock.time();
         loadGame();

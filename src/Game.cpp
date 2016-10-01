@@ -3,12 +3,9 @@
 static const int frame_buff_w = 720;
 static const int frame_buff_h = 1280;
 
+//most likely not needed
 static const vec2 default_player_size   = {80, 100};
 static const vec2 default_player_pos    = {frame_buff_w/2 - 80/2, 0};
-static const vec2 default_rwall_size    = {20, 1080};
-static const vec2 default_rwall_pos     = {0, 0};
-static const vec2 default_lwall_size    = {20, 1080};
-static const vec2 default_lwall_pos     = {frame_buff_w-20, 0};
 
 static const char vertex_shader_src[] = {
     "#version 100\n"
@@ -52,6 +49,33 @@ loadShader(Renderer* renderer, const char* vs, const char* fs, int shader_enum);
 static void closeGame()
 {
     //TODO: FREE SHADERS AND OTHER RESOURCES???????????????
+    
+}
+
+static void readHighScore(GameState* state)
+{
+    SDL_RWops* io = SDL_RWFromFile("highscore.data", "rb");
+    if( io != NULL ){
+        int score; 
+        if( SDL_RWread(io, (void*)&score, sizeof(int), 1) > 0 ){
+            printf("read some shit : %d\n", score);
+            state->high_score = score;
+        }
+        SDL_RWclose(io);
+    }
+}
+
+static void saveHighScore(GameState* state)
+{
+    SDL_RWops* io = SDL_RWFromFile("highscore.data", "wb"); 
+    if( io != NULL ){
+        if( SDL_RWwrite(io, (void*)&state->high_score, sizeof(int), 1) != 1){
+            printf("could not write score\n");
+        } else {
+            printf("wrote fucking score\n");
+        }
+        SDL_RWclose(io);
+    }
 }
 
 
@@ -78,43 +102,65 @@ static void resetGameStateDefaults(GameState* state)
         state->spawn_increase_time = 0.f;
         state->spawn_increase_rate = 1.f;
 
-        //left wall init
-        state->left_wall.shader_enum = Shader_Default;
-        state->left_wall.shape_enum = Shape_Rect;
-        //state->left_wall.texture_enum = Texture_Wall;
-        state->left_wall.texture_enum = Texture_Default;
-        state->left_wall.rect.position = default_rwall_pos;
-        state->left_wall.rect.size = default_rwall_size;
-        //state->left_wall.color = {1, 1, 1, 1};
-        state->left_wall.color = {0.9f, 0.04f, 0.51f, 1};
+        //init walls
+        float wall_width = 20.f;
+        vec4 wall_color = {0.9f, 0.04f, 0.51f, 1.f};
+        state->walls[Wall_Left].shader_enum     = Shader_Default;
+        state->walls[Wall_Left].shape_enum      = Shape_Rect;
+        state->walls[Wall_Left].texture_enum    = Texture_Default;
+        state->walls[Wall_Left].rect.position   = {0, 0};
+        state->walls[Wall_Left].rect.size       = {wall_width, frame_buff_h};
+        state->walls[Wall_Left].color           = wall_color;
 
-        //right wall init
-        state->right_wall.shader_enum = Shader_Default;
-        state->right_wall.shape_enum = Shape_Rect;
-        //state->right_wall.texture_enum = Texture_Wall;
-        state->right_wall.texture_enum = Texture_Default;
-        state->right_wall.rect.position = default_lwall_pos;
-        state->right_wall.rect.size = default_lwall_size;
-        //state->right_wall.color = {1, 1, 1, 1};
-        state->right_wall.color = {0.9f, 0.04f, 0.51f, 1};
+        state->walls[Wall_Right].shader_enum    = Shader_Default;
+        state->walls[Wall_Right].shape_enum     = Shape_Rect;
+        state->walls[Wall_Right].texture_enum   = Texture_Default;
+        state->walls[Wall_Right].rect.position  = {frame_buff_w - wall_width, 0};
+        state->walls[Wall_Right].rect.size      = {wall_width, frame_buff_h};
+        state->walls[Wall_Right].color          = wall_color;
+
+        state->walls[Wall_Floor].shader_enum    = Shader_Default;
+        state->walls[Wall_Floor].shape_enum     = Shape_Rect;
+        state->walls[Wall_Floor].texture_enum   = Texture_Default;
+        state->walls[Wall_Floor].rect.position  = {0, 0};
+        state->walls[Wall_Floor].rect.size      = {frame_buff_w, wall_width};
+        state->walls[Wall_Floor].color          = wall_color;
+
 
         state->spikes[0].shader_enum = Shader_Default;
         state->spikes[0].shape_enum = Shape_Rect;
         state->spikes[0].texture_enum = Texture_Spike;
-        state->spikes[0].color = state->left_wall.color;
-        state->spikes[0].rect.position = {0, state->left_wall.rect.h};
-        state->spikes[0].rect.size = {state->left_wall.rect.w, 
-            frame_buff_h-state->left_wall.rect.h};
+        state->spikes[0].color = wall_color;
+        state->spikes[0].rect.size = {wall_width, 200};
+        state->spikes[0].rect.position = {0, frame_buff_h-200};
 
-        state->spikes[1].shader_enum = Shader_Default;
-        state->spikes[1].shape_enum = Shape_Rect;
-        state->spikes[1].texture_enum = Texture_Spike;
-        state->spikes[1].color = state->right_wall.color;
-        state->spikes[1].rect.position = {state->right_wall.rect.position.x,
-            state->right_wall.rect.h};
-        state->spikes[1].rect.size = {state->right_wall.rect.w, 
-            frame_buff_h-state->right_wall.rect.h};
+        state->spikes[1].shader_enum    = Shader_Default;
+        state->spikes[1].shape_enum     = Shape_Rect;
+        state->spikes[1].texture_enum   = Texture_Spike;
+        state->spikes[1].color          = wall_color;
+        state->spikes[1].rect.size      = {wall_width, 200};
+        state->spikes[1].rect.position  = {frame_buff_w-wall_width, frame_buff_h-200};
 
+        state->alarm.shader_enum    = Shader_Default;
+        state->alarm.shape_enum     = Shape_Rect;
+        state->alarm.texture_enum   = Texture_Alarm;
+        state->alarm.anim_time      = 3.f;
+
+        state->alarm.color          = {1, 1, 1, 1};
+
+        state->alarm.rect.size      = {10, 40};
+        float xpos = (rand()%(frame_buff_w - 40) + 20);
+        state->alarm.rect.position  = {xpos, 50};
+
+        state->gspike.shader_enum   = Shader_Default;
+        state->gspike.shape_enum    = Shape_Rect;
+        state->gspike.texture_enum  = Texture_GSpike;
+        state->gspike.color         = {1, 1, 1, 1};
+        state->gspike.rect.size     = {140, 40};
+        state->gspike.life_time     = 5.f;
+        state->gspike.valid         = false;
+        
+        readHighScore(state);
 };
 
 extern "C"
@@ -135,16 +181,6 @@ int initGame(Renderer* renderer, GameState* state, SDL_Window* window)
         loadShader(renderer, vertex_shader_src, fragment_shader_src, Shader_Default);
 
         //get rectangle vertices/uvs to gpu
-#if 0
-        Vertex v[6] =  {    { {0.0003f, 0.9997f}, {0.0003f, 0.9997f} },
-                            { {0.0003f, 0.0003f}, {0.0003f, 0.0003f} },
-                            { {0.9997f, 0.0003f}, {0.9997f, 0.0003f} },
-
-                            { {0.0003f, 0.9997f}, {0.0003f, 0.9997f} },
-                            { {0.9997f, 0.0003f}, {0.9997f, 0.0003f} },
-                            { {0.9997f, 0.9997f}, {0.9997f, 0.9997f} }
-                        };
-#else
         Vertex v[6] =  {    { {0.f, 1.f}, {0.f, 1.f} },
                             { {0.f, 0.f}, {0.f, 0.f} },
                             { {1.f, 0.f}, {1.f, 0.f} },
@@ -154,7 +190,6 @@ int initGame(Renderer* renderer, GameState* state, SDL_Window* window)
                             { {1.f, 1.f}, {1.f, 1.f} }
                         };
 
-#endif
 
         GLuint vert_buffer;  
         glGenBuffers(1, &vert_buffer);
@@ -192,7 +227,9 @@ int initGame(Renderer* renderer, GameState* state, SDL_Window* window)
         loadTexture2D(&renderer->textures[Texture_EnemyL], "textures/enemyl.png");
         loadTexture2D(&renderer->textures[Texture_EnemyR], "textures/enemyr.png");
         loadTexture2D(&renderer->textures[Texture_Spike], "textures/spike.png");
-        loadTexture2D(&renderer->textures[Texture_Wall], "textures/rmntdw.png");
+        loadTexture2D(&renderer->textures[Texture_GSpike], "textures/ggspike.png");
+        //loadTexture2D(&renderer->textures[Texture_Wall], "textures/rmntdw.png");
+        loadTexture2D(&renderer->textures[Texture_Alarm], "textures/alarm.png");
         loadTexture2D(&renderer->textures[Texture_BackGround], "textures/bg.png");
         createWhiteTexture(&renderer->textures[Texture_Default]);
         
@@ -249,10 +286,10 @@ int initGame(Renderer* renderer, GameState* state, SDL_Window* window)
 static void
 resetStateAfterDeath(GameState* state)
 {
+    saveHighScore(state);
+
     resetGameStateDefaults(state); 
-
     state->score = {};
-
     for(int i = 1; i < MAX_ENTITIES; ++i){
         state->entities[i].valid = false;
     }
@@ -350,7 +387,6 @@ void drawState(Renderer* renderer, GameState* state)
     glClear(GL_COLOR_BUFFER_BIT);
 
     {//draw background
-        
         model_mat.z.xy = {0, 0};
         //model_mat.m00 = state->win_width;
         //model_mat.m11 = state->win_height;
@@ -376,80 +412,8 @@ void drawState(Renderer* renderer, GameState* state)
         glUniform4fv(shader->getUniform("color"), 1, &col.e[0]);
 
         glDrawArrays(GL_TRIANGLES, 0, 6);
-    }//
+    }//draw background
     
-
-    {//draw walls
-        model_mat.z.xy = state->left_wall.rect.position; 
-        model_mat.m00 = state->left_wall.rect.w;
-        model_mat.m11 = state->left_wall.rect.h;
-
-        m = state->projection*model_mat;
-
-        //BUFFER stuff
-        glBindBuffer(GL_ARRAY_BUFFER, renderer->vert_buffers[Shape_Rect]);
-
-        glEnableVertexAttribArray(attrib_pos);
-        glVertexAttribPointer(attrib_pos, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), 0);
-
-        glEnableVertexAttribArray(attrib_uv);
-        glVertexAttribPointer(attrib_uv, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), 
-                (const void*)offsetof(Vertex, uv));
-
-        //texture stuff
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, renderer->textures[state->left_wall.texture_enum]);
-
-        //shader stuff
-        Shader* shader = &renderer->shaders[state->left_wall.shader_enum];
-        glUseProgram(shader->program);
-        glUniformMatrix3fv(shader->getUniform("mvp_mat"), 1, GL_FALSE, m.e);
-        glUniform4fv(shader->getUniform("color"), 1, &state->left_wall.color.e[0]);
-
-        glDrawArrays(GL_TRIANGLES, 0, 6);
-
-        model_mat.z.xy = state->right_wall.rect.position;
-        model_mat.m00 = state->right_wall.rect.w;
-        model_mat.m11 = state->right_wall.rect.h;
-        m = state->projection*model_mat;
-
-
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, renderer->textures[state->right_wall.texture_enum]);
-
-        shader = &renderer->shaders[state->right_wall.shader_enum];
-        glUseProgram(shader->program);
-        glUniformMatrix3fv(shader->getUniform("mvp_mat"), 1, GL_FALSE, m.e);
-        glUniform4fv(
-        shader->getUniform("color"), 1, &state->right_wall.color.e[0]);
-
-        glDrawArrays(GL_TRIANGLES, 0, 6);
-
-        for(int i = 0; i < 2; ++i){
-            if(i == 1){
-                model_mat.z.xy = {state->spikes[i].rect.x+state->spikes[i].rect.w,
-                                    state->spikes[i].rect.y};
-                model_mat.m00 = -state->spikes[i].rect.w-10;
-            }
-            else{
-                model_mat.z.xy = state->spikes[i].rect.position;
-                model_mat.m00 = state->spikes[i].rect.w+10;
-            }
-            model_mat.m11 = state->spikes[i].rect.h;
-            m = state->projection*model_mat;   
-
-            glActiveTexture(GL_TEXTURE0);
-            glBindTexture(GL_TEXTURE_2D,renderer->textures[state->spikes[i].texture_enum]);
-
-            shader = &renderer->shaders[state->spikes[i].shader_enum];
-            glUseProgram(shader->program);
-            glUniformMatrix3fv(shader->getUniform("mvp_mat"), 1, GL_FALSE, m.e);
-            glUniform4fv(
-                shader->getUniform("color"), 1, &state->spikes[i].color.e[0]);
-
-            glDrawArrays(GL_TRIANGLES, 0, 6);
-        }
-    }
 
     {//draw Entities 
         glBindBuffer(GL_ARRAY_BUFFER, renderer->vert_buffers[Shape_Rect]);
@@ -485,6 +449,93 @@ void drawState(Renderer* renderer, GameState* state)
         }
 
     }//draw entities
+
+    if(state->gspike.valid){
+        Shader* shader;
+        model_mat.z.xy = state->gspike.rect.position;
+        model_mat.m00 = state->gspike.rect.w;
+        model_mat.m11 = state->gspike.rect.h;
+        m = state->projection*model_mat;
+
+        shader = &renderer->shaders[state->gspike.shader_enum];
+        glUseProgram(shader->program);
+
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D,renderer->textures[state->gspike.texture_enum]);
+        glUniformMatrix3fv(shader->getUniform("mvp_mat"), 1, GL_FALSE, m.e);
+        glUniform4fv(
+            shader->getUniform("color"), 1, &state->gspike.color.e[0]);
+
+        glDrawArrays(GL_TRIANGLES, 0, 6);
+    }
+
+    {//draw walls
+        Shader* shader;
+        for(int i = 0; i < Wall_Max; ++i){
+            model_mat.z.xy = state->walls[i].rect.position; 
+            model_mat.m00 = state->walls[i].rect.w;
+            model_mat.m11 = state->walls[i].rect.h;
+            m = state->projection*model_mat;
+
+            shader = &renderer->shaders[state->walls[i].shader_enum];
+            glUseProgram(shader->program);
+
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D,renderer->textures[state->walls[i].texture_enum]);
+            glUniformMatrix3fv(shader->getUniform("mvp_mat"), 1, GL_FALSE, m.e);
+            glUniform4fv(
+                shader->getUniform("color"), 1, &state->walls[i].color.e[0]);
+
+            glDrawArrays(GL_TRIANGLES, 0, 6);
+        }
+
+        for(int i = 0; i < 2; ++i){
+            if(i == 1){
+                model_mat.z.xy = {state->spikes[i].rect.x+state->spikes[i].rect.w,
+                                    state->spikes[i].rect.y};
+                model_mat.m00 = -state->spikes[i].rect.w-15;
+            }
+            else{
+                model_mat.z.xy = state->spikes[i].rect.position;
+                model_mat.m00 = state->spikes[i].rect.w+15;
+            }
+            model_mat.m11 = state->spikes[i].rect.h;
+            m = state->projection*model_mat;   
+
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D,renderer->textures[state->spikes[i].texture_enum]);
+
+            shader = &renderer->shaders[state->spikes[i].shader_enum];
+            glUseProgram(shader->program);
+            glUniformMatrix3fv(shader->getUniform("mvp_mat"), 1, GL_FALSE, m.e);
+            glUniform4fv(
+                shader->getUniform("color"), 1, &state->spikes[i].color.e[0]);
+
+            glDrawArrays(GL_TRIANGLES, 0, 6);
+        }
+
+    }//draw walls
+        
+    {//draw alarm
+    if(state->alarm.valid){
+        model_mat.z.xy = state->alarm.rect.position;  
+        model_mat.m00 = state->alarm.rect.w;
+        model_mat.m11 = state->alarm.rect.h;
+        m = state->projection*model_mat;
+
+        Shader* shader = &renderer->shaders[state->alarm.shader_enum];
+        glUseProgram(shader->program);
+
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D,renderer->textures[state->alarm.texture_enum]);
+        glUniformMatrix3fv(shader->getUniform("mvp_mat"), 1, GL_FALSE, m.e);
+        glUniform4fv(
+            shader->getUniform("color"), 1, &state->alarm.color.e[0]);
+
+        glDrawArrays(GL_TRIANGLES, 0, 6);
+    }
+    }//draw alarm
+
 
     {//draw fucking score
 
@@ -631,7 +682,7 @@ void drawState(Renderer* renderer, GameState* state)
     if(state->dead)
     {//draw death screen
         
-        vec2 size = {500, 500}; 
+        vec2 size = {500, 400}; 
         model_mat.m00 = size.x;
         model_mat.m11 = size.y;
         model_mat.z.xy = {(frame_buff_w-size.x)/2, (frame_buff_h-size.y)/2+50};
@@ -830,32 +881,49 @@ static void resolveCollisions(GameState* state)
         }
     }
 
-    //left wall detection
-    if(pos.x < state->left_wall.rect.x + state->left_wall.rect.w){
-        pos.x = state->left_wall.rect.x + state->left_wall.rect.w; 
-        vel.x = 0.f;
-        if( pStateCheck(player->p_state, PS_InAir) ){
-            vel.y = -50;
-            pStateSet(&player->p_state, PS_OnWall);
-            player->texture_enum = Texture_PlayerGround;
+    
+    //WALL DETECTION
+    for(int i = 0; i < Wall_Max; ++i){
+        if(rectToRectCollision(&player->rect, &state->walls[i].rect)){
+            if(i == Wall_Left){
+                pos.x = state->walls[i].rect.x + state->walls[i].rect.w;
+                vel.x = 0;
+                if( pStateCheck(player->p_state, PS_InAir) ){
+                    vel.y = -50;
+                    pStateSet(&player->p_state, PS_OnWall);
+                    player->texture_enum = Texture_PlayerGround;
+                }
+            }else if(i == Wall_Right){
+                pos.x = state->walls[i].rect.x - size.x;
+                vel.x = 0;
+                if( pStateCheck(player->p_state, PS_InAir) ){
+                    vel.y = -50;
+                    pStateSet(&player->p_state, PS_OnWall);
+                    player->texture_enum = Texture_PlayerGround;
+                }
+            }else {
+                pos.y = state->walls[i].rect.h;    
+                if( pStateCheck(player->p_state, PS_InAir) ){
+                    pStateClear(&player->p_state, PS_OnWall);
+                    pStateClear(&player->p_state, PS_InAir);
+                    player->texture_enum = Texture_PlayerGround;
+                }
+            }
         }
-    }
-    //right wall
-    if(pos.x + size.x > state->right_wall.rect.x){
-        pos.x = state->right_wall.rect.x - size.x;
-        vel.x = 0.f; 
-        if( pStateCheck(player->p_state, PS_InAir) ){
-            vel.y = -50;
-            pStateSet(&player->p_state, PS_OnWall);
-            player->texture_enum = Texture_PlayerGround;
-        }
-    }
+    } 
+
     //spikes
     for(int i = 0; i < 2; ++i){
         if(rectToRectCollision(&player->rect, &state->spikes[i].rect)){
             player->texture_enum = Texture_PlayerDead;
             state->dead = true;
         }
+    }
+
+    
+    if(state->gspike.valid && rectToRectCollision(&player->rect, &state->gspike.rect)){
+        player->texture_enum = Texture_PlayerDead;
+        state->dead = true;
     }
     
     player->color = {1, 1, 1, 1};
@@ -868,15 +936,9 @@ static void resolveCollisions(GameState* state)
                 break;
             }
 
+
             //player-enemy collision
-#if 0
-            if(player->rect.position.x < ent->rect.position.x + ent->rect.size.x &&
-                player->rect.position.x + player->rect.size.x > ent->rect.position.x &&
-                player->rect.position.y < ent->rect.position.y + ent->rect.size.y &&
-                player->rect.position.y + player->rect.size.y > ent->rect.position.y)
-#else
             if(rectToRectCollision(&player->rect, &ent->rect))
-#endif
             {
                 //printf("COLLISION WITH PLAYER KEK\n");
                 //player->color = {1, 0, 1, 1};
@@ -886,40 +948,20 @@ static void resolveCollisions(GameState* state)
                 //SDL_Delay(100);
             }
             
-            if( rectToRectCollision(&ent->rect, &state->right_wall.rect))
+
+            //enemy-wall collision
+            if(rectToRectCollision(&ent->rect, &state->walls[Wall_Left].rect))
             {
-                ent->rect.x = state->right_wall.rect.x - ent->rect.w;
+                ent->rect.x = state->walls[Wall_Left].rect.x + ent->rect.w;
+                ent->velocity.x = -ent->velocity.x;
+                ent->texture_enum = Texture_EnemyR;
+            }
+            if(rectToRectCollision(&ent->rect, &state->walls[Wall_Right].rect))
+            {
+                ent->rect.x = state->walls[Wall_Right].rect.x - ent->rect.w;
                 ent->velocity.x = -ent->velocity.x;
                 ent->texture_enum = Texture_EnemyL;
             }
-            if( rectToRectCollision(&ent->rect, &state->left_wall.rect)){
-                 //ent->velocity = -ent->velocity*0.1f;
-                ent->rect.x = state->left_wall.rect.x + state->left_wall.rect.w;
-                ent->velocity.x = -ent->velocity.x;
-                ent->texture_enum = Texture_EnemyR;
-                 //ent->valid = false;
-            }
-            if( rectToRectCollision(&ent->rect, &state->spikes[0].rect))
-            {
-                ent->rect.x = state->spikes[0].rect.x + state->spikes[0].rect.w;
-                ent->velocity.x = -ent->velocity.x;
-                ent->texture_enum = Texture_EnemyR;
-
-            }
-            if( rectToRectCollision(&ent->rect, &state->spikes[1].rect)){
-                ent->rect.x = state->spikes[1].rect.x - ent->rect.w;
-                ent->velocity.x = -ent->velocity.x;
-                ent->texture_enum = Texture_EnemyL;
-            }
-
-#if 0       //not needed
-            //ent collision  with walls
-            if(ent->rect.x < 0.f){
-                ent->velocity.x = -ent->velocity.x;
-            }else if(ent->rect.x + ent->rect.w > frame_buff_w){
-                ent->velocity.x = -ent->velocity.x;
-            }
-#endif
         }
     }
     //printf("SCORE LEL %d\n", state->score.score);
@@ -965,6 +1007,72 @@ static void spawnEnemy(EnemySpawner* spawner, GameState* state)
             }
         }    
         spawner->clock.restart();
+    }
+}
+
+
+static void spawnAlarm(GameState* state, float dt)
+{
+    static float wait_time = 5.f;
+    Alarm* alarm = &state->alarm;
+    if(alarm->valid){
+        if(alarm->anim_time <= 0){
+            float xpos = (rand()%(frame_buff_w - 40) + 20);
+            alarm->rect.x = xpos;
+            alarm->anim_time = 3.f;
+        }
+        if(alarm->anim_time > 0){
+            if(alarm->fading){
+                alarm->color.a -= 5.f*dt;
+                if(alarm->color.a < 0){
+                    alarm->fading = false;
+                }
+            }else {
+                alarm->color.a += 3.f*dt;
+                if(alarm->color.a > 1){
+                    alarm->fading = true;
+                }
+            }
+
+            alarm->anim_time -= dt;
+            if(alarm->anim_time <= 0){
+                //spawn spike;
+                state->gspike.valid = true;
+                state->gspike.rect.x = alarm->rect.x - state->gspike.rect.w/2;
+                state->gspike.rect.y = -state->gspike.rect.h;
+                state->gspike.life_time = 5.f;
+                state->gspike.retract = false;
+                alarm->valid = false;
+                alarm->color.a = 0.f;
+            }
+        }
+    }else{
+        if(wait_time > 0){
+            wait_time -= dt;
+        }else{
+            alarm->valid = true;
+            wait_time = 5.f;
+        }
+
+    }
+
+}
+
+static void spawnSpike(GameState* state, float dt)
+{
+    GSpike* spike = &state->gspike;    
+    
+    if(spike->valid){
+        if(spike->rect.y < 0 && spike->retract == false){
+            spike->rect.y += 75.f*dt;
+        }else{
+            if(spike->life_time > 0){
+                spike->life_time -= dt;
+            }else{
+                spike->rect.y -= 75.f*dt;
+                spike->retract = true;
+            }
+        }
     }
 }
 
@@ -1016,5 +1124,7 @@ void processTick(GameState* state, float dt)
             state->e_spawner.spawn_time *= 0.99;
             state->spawn_increase_time = state->game_time;
         }
+        spawnSpike(state, dt);
+        spawnAlarm(state, dt);
     }
 }

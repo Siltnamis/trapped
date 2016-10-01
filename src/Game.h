@@ -26,7 +26,7 @@ enum Shader_Enum    { Shader_Default, Shader_Max };
 enum Shape_Enum     { Shape_Rect, Shape_Max };
 enum Texture_Enum   { Texture_Default, Texture_PlayerGround, Texture_PlayerAir, 
                         Texture_PlayerDead, Texture_EnemyR, Texture_EnemyL, 
-                        Texture_Spike,
+                        Texture_Spike,Texture_GSpike, Texture_Alarm,
                         Texture_Digit0, Texture_Digit1, Texture_Digit2,
                         Texture_Digit3, Texture_Digit4, Texture_Digit5,
                         Texture_Digit6, Texture_Digit7, Texture_Digit8,
@@ -155,6 +155,32 @@ struct EnemySpawner
 };
 
 
+enum Wall_Enum {Wall_Left, Wall_Right, Wall_Floor, Wall_Max };
+
+struct Alarm
+{
+    int     shader_enum;
+    int     shape_enum;
+    int     texture_enum;
+    Rect    rect;
+    vec4    color;
+    float   anim_time;
+    bool    fading;
+    bool    valid;
+};
+
+struct GSpike
+{
+    int     shader_enum;
+    int     shape_enum;
+    int     texture_enum;
+    Rect    rect;
+    vec4    color;
+    float   life_time;
+    bool    valid;
+    bool    retract;
+};
+
 #define MAX_ENTITIES 200
 struct GameState
 {
@@ -176,9 +202,12 @@ struct GameState
     float           spawn_increase_time;
     float           spawn_increase_rate;
 
-    Wall            left_wall;
-    Wall            right_wall;
+    Wall            walls[Wall_Max];
+
     Wall            spikes[2];
+    Alarm           alarm;
+    GSpike          gspike;
+
 
     SDL_Joystick*   accel;
     //make into an array of 2?
