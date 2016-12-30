@@ -33,11 +33,12 @@ void                (*drawState)(Renderer*, GameState*);
 static const char*  default_title = "Sickest game 4Head";
 static int          default_height = 900;
 static int          default_width = default_height*9/16;
-static int          default_tick = 60;
+static int          default_tick = 30;
 
 static int          height = default_height;
 static int          width = default_width;
-static int          tick_rate = 60;
+
+static int          tick_rate = 30;
 
 
 static GameState    game_state;
@@ -68,7 +69,7 @@ void loadGame()
             }
         }
         printf("test wait for close lib handle\n");
-        SDL_Delay(150);
+        SDL_Delay(300);
         printf("woke up\n");
 
         int status;
@@ -100,7 +101,9 @@ void loadGame()
              
         }else{
             //printf("%s\nfailed to laod lib %s\n", dlerror(), game_lib_copy);
-            assert(game_lib_handle);
+            printf("%s\n", dlerror());
+            assert(game_lib_handle != NULL);
+
         }
         game_lib_change_time = new_change_time;
     }
@@ -130,7 +133,7 @@ int main(int argc, char** argv)
     SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES, 0);
 
 //#ifdef __ANDROID__ 
-#if 1
+#if 0
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);

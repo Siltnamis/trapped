@@ -5,7 +5,7 @@ static const int frame_buff_h = 1280;
 
 //most likely not needed
 static const vec2 default_player_size   = {80, 100};
-static const vec2 default_player_pos    = {frame_buff_w/2 - 80/2, 0};
+static const vec2 default_player_pos    = {frame_buff_w/2 - 80/2, 20};
 
 static const char vertex_shader_src[] = {
     "#version 100\n"
@@ -82,8 +82,10 @@ static void saveHighScore(GameState* state)
 static void resetGameStateDefaults(GameState* state)
 {
         state->dead= false;
+        state->new_hscore = false;
         state->game_time = 0.f;
         state->projection = mat3_ortho(0, frame_buff_w, 0, frame_buff_h);
+
 
         Entity* player = &state->entities[E_Player];
         player->type = E_Player;
@@ -159,6 +161,16 @@ static void resetGameStateDefaults(GameState* state)
         state->gspike.rect.size     = {140, 40};
         state->gspike.life_time     = 5.f;
         state->gspike.valid         = false;
+
+        state->hscore_anim.shader_enum = Shader_Default;
+        state->hscore_anim.shape_enum = Shape_Rect;
+        state->hscore_anim.texture_enum = Texture_HScoreGZ;
+        state->hscore_anim.rect.size = { 400, 60 };
+        state->hscore_anim.rect.x = (frame_buff_w-state->hscore_anim.rect.w)/2;
+        state->hscore_anim.rect.y = 1000;
+        state->hscore_anim.color = {1, 1, 1, 0};
+
+        state->hscore_anim.fading = false;
         
         readHighScore(state);
 };
@@ -179,6 +191,12 @@ int initGame(Renderer* renderer, GameState* state, SDL_Window* window)
         renderer->vs_change_times[Shader_Default] = 0;
         renderer->fs_change_times[Shader_Default] = 0;
         loadShader(renderer, vertex_shader_src, fragment_shader_src, Shader_Default);
+
+        renderer->vert_shaders[Shader_Text] = "shaders/text.vert"; 
+        renderer->frag_shaders[Shader_Text] = "shaders/text.frag"; 
+        renderer->vs_change_times[Shader_Text] = 0;
+        renderer->fs_change_times[Shader_Text] = 0;
+        //loadShader(renderer, vertex_shader_src, fragment_shader_src, Shader_Default);
 
         //get rectangle vertices/uvs to gpu
         Vertex v[6] =  {    { {0.f, 1.f}, {0.f, 1.f} },
@@ -246,10 +264,20 @@ int initGame(Renderer* renderer, GameState* state, SDL_Window* window)
 
         loadTexture2D(&renderer->textures[Texture_Score], "textures/score.png");
         loadTexture2D(&renderer->textures[Texture_HScore], "textures/hscore.png");
+        loadTexture2D(&renderer->textures[Texture_HScoreGZ], "textures/hscoregz.png");
 
         loadTexture2D(&renderer->textures[Texture_DeathScreen], "textures/dscreen.png");
+        loadTexture2D(&renderer->textures[Texture_Name], "textures/name.png");
+        loadTexture2D(&renderer->textures[Texture_Paused], "textures/paused.png");
         
     }
+
+#ifdef __ANDROID__
+    //admib bullshit
+    {
+
+    }
+#endif
 
     //init GameState
     {
@@ -263,6 +291,7 @@ int initGame(Renderer* renderer, GameState* state, SDL_Window* window)
         state->win_height = h;
 
         resetGameStateDefaults(state); 
+        state->paused = true;
 
         for(int i = 0; i < SDL_NumJoysticks(); ++i){
             state->accel = SDL_JoystickOpen(i);
@@ -279,6 +308,10 @@ int initGame(Renderer* renderer, GameState* state, SDL_Window* window)
         SDL_Log("joystick number of buttons = %d\n",SDL_JoystickNumButtons(state->accel));
         
     }
+
+
+    //init some AD BULLSHIt LUL
+
 
     return 0;
 }
@@ -308,10 +341,12 @@ setupShader(Renderer* renderer, int shader_enum)
         renderer->attrib_in_uv = glGetAttribLocation(program, "in_uv");
         printf("%d loc\n", glGetAttribLocation(program, "in_pos"));
     }
-    //else if(shader_enum == Shader_Skybox){
-        //glUseProgram(renderer->shaders[shader_enum].program);
-        //renderer->shaders[shader_enum].addUniforms(2, "view_mat", "proj_mat");
-    //}
+    else if(shader_enum == Shader_Text){
+        glUseProgram(renderer->shaders[shader_enum].program);
+        renderer->shaders[shader_enum].addUniforms(1, "mvp_mat");
+        printf("inited text shader kek\n");
+
+    }
     //glUseProgram(0); ??
      
 }
@@ -369,11 +404,62 @@ static void printmat(mat3 m){
 
     printf("\n");
 }
+#if 0
+static void drawText(Renderer* renderer)
+{
+    glEnable(GL_BLEND);
+    glEnable(GL_CULL_FACE);
+    glFrontFace(GL_CCW);
+    glCullFace(GL_BACK);
+    glDisable(GL_CULL_FACE);
+    Text text;
+
+    Font font;
+
+    TextBuffer tbuff;
+
+    fontLoad(&font, "fcrystal.ttf", 32);
+    textBufferCreate(&tbuff, 1024);
+
+    char tstr[128] = {};
+    text.pos = {10, 32};
+    text.font = &font;
+    text.color = {0.7, 0.8, 0.9, 1};
+    text.str = tstr;
+    text.size = 24;
+
+    sprintf(text.str, "Frame time: .3fms");
+
+
+    textBufferBegin(&tbuff);
+    textBufferPush(&tbuff, &text);
+    textBufferEnd(&tbuff);
+
+    int height = 900;
+    int width = height*9/16;
+    mat4 ortho = mat4_ortho(0, width, height, 0, 1, -1);
+    
+    glBindVertexArray(tbuff.vao);
+    Shader* shader = &renderer->shaders[Shader_Text];
+    glUseProgram(shader->program);
+    glUniformMatrix4fv(shader->getUniform("mvp_mat"), 1, GL_FALSE, ortho.e);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, text.font->texture);
+    glDrawArrays(GL_TRIANGLES, 0, tbuff.vertex_count);
+    
+
+    fontFree(&font);
+    textBufferDestroy(&tbuff);
+}
+#endif
 
 extern "C"
 void drawState(Renderer* renderer, GameState* state)
 {
-    //checkShaderReload(renderer);
+    glEnable(GL_BLEND);
+    //glDisable(GL_BLEND);
+
+    checkShaderReload(renderer);
     glClear(GL_COLOR_BUFFER_BIT);
 
     GLuint attrib_pos = renderer->attrib_in_pos;
@@ -539,6 +625,7 @@ void drawState(Renderer* renderer, GameState* state)
 
     {//draw fucking score
 
+    //if(!state->paused){
         glBindBuffer(GL_ARRAY_BUFFER, renderer->vert_buffers[Shape_Rect]);
 
         glEnableVertexAttribArray(attrib_pos);
@@ -582,6 +669,7 @@ void drawState(Renderer* renderer, GameState* state)
 
             hscore /= 10;
         }
+    //}
 
         //draw highscore text
         vec2 hsize = {180, 30};
@@ -607,6 +695,7 @@ void drawState(Renderer* renderer, GameState* state)
         glDrawArrays(GL_TRIANGLES, 0, 6);
 
 
+    if(state->paused == false){
         //draw score text
         vec2 stsize = {140, 45};
         vec2 stpos = {(frame_buff_w - stsize.x)/2, frame_buff_h - 100 - stsize.y};
@@ -673,11 +762,54 @@ void drawState(Renderer* renderer, GameState* state)
                 1, &color.e[0]);
             glDrawArrays(GL_TRIANGLES, 0, 6);
         }
-
-        //move this to processTick
-        //if(state->score > state->high_score) state->high_score = state->score;
-
+    }
     }//draw fucking score
+
+    if(state->paused){
+        vec2 size = {500, 100};
+        model_mat.m00 = size.x;
+        model_mat.m11 = size.y;
+        model_mat.z.xy = {(frame_buff_w-size.x)/2, 1000};
+        m = state->projection*model_mat;
+
+        vec4 color = {1, 1, 1, 1};
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, renderer->textures[Texture_Name]);
+
+        glUseProgram(renderer->shaders[Shader_Default].program);
+        glUniformMatrix3fv(
+                renderer->shaders[Shader_Default].getUniform("mvp_mat"),
+                1, GL_FALSE, m.e);
+        glUniform4fv(
+                renderer->shaders[Shader_Default].getUniform("color"),
+                1, &color.e[0]);
+        glDrawArrays(GL_TRIANGLES, 0, 6);
+
+    }
+    
+
+
+    {//draw hscore_anim
+
+        model_mat.z.xy = state->hscore_anim.rect.position;
+        model_mat.m00 = state->hscore_anim.rect.w;
+        model_mat.m11 = state->hscore_anim.rect.h;
+        m = state->projection*model_mat;
+
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, renderer->textures[state->hscore_anim.texture_enum]);
+
+        glUseProgram(renderer->shaders[Shader_Default].program);
+        glUniformMatrix3fv(
+            renderer->shaders[Shader_Default].getUniform("mvp_mat"),
+            1, GL_FALSE, m.e);
+        glUniform4fv(
+            renderer->shaders[Shader_Default].getUniform("color"),
+            1, &state->hscore_anim.color.e[0]);
+        glDrawArrays(GL_TRIANGLES, 0, 6);
+
+
+    }//draw hscore_anim
 
     if(state->dead)
     {//draw death screen
@@ -702,6 +834,30 @@ void drawState(Renderer* renderer, GameState* state)
             1, &color.e[0]);
         glDrawArrays(GL_TRIANGLES, 0, 6);
     }//
+
+    
+    if(state->paused)
+    {//draw paused
+        vec2 size = {500, 50};
+        model_mat.m00 = size.x;
+        model_mat.m11 = size.y;
+        model_mat.z.xy = {(frame_buff_w-size.x)/2, 800};
+        vec4 color = {1, 1, 1, 1};
+
+        m = state->projection*model_mat;
+
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, renderer->textures[Texture_Paused]);
+
+        glUseProgram(renderer->shaders[Shader_Default].program);
+        glUniformMatrix3fv(
+            renderer->shaders[Shader_Default].getUniform("mvp_mat"),
+            1, GL_FALSE, m.e);
+        glUniform4fv(
+            renderer->shaders[Shader_Default].getUniform("color"),
+            1, &color.e[0]);
+        glDrawArrays(GL_TRIANGLES, 0, 6);
+    }
     
     {//draw framebuffer texture to screen
 
@@ -735,6 +891,8 @@ void drawState(Renderer* renderer, GameState* state)
         glDrawArrays(GL_TRIANGLES, 0, 6);
 
     }
+    //drawText(renderer);
+
 }
 
 static void pStateSet(int* p_state, int state_enum)
@@ -755,7 +913,6 @@ static bool pStateCheck(int p_state, int state_enum)
 extern "C"
 void processEvent(GameState* state, SDL_Event* event, SDL_Window* window)
 {
-
     Entity* player = &state->entities[E_Player];
     switch (event->type)
     {
@@ -767,6 +924,7 @@ void processEvent(GameState* state, SDL_Event* event, SDL_Window* window)
         {
             if( event->key.keysym.sym == SDLK_r ){
                 state->e_spawner.spawn_time = 1.f;
+                state->high_score = 0.f;
             }
         }break;
 
@@ -791,39 +949,45 @@ void processEvent(GameState* state, SDL_Event* event, SDL_Window* window)
         {
             act_press:
             //event->button.button = SDL_BUTTON_LEFT;
-            if(state->dead == false){
-                if(event->button.button == SDL_BUTTON_LEFT){
-                    if( !pStateCheck(player->p_state, PS_InAir) ){
-                        player->velocity.y = 550;
-                        pStateSet(&player->p_state, PS_InAir);
-                        player->texture_enum = Texture_PlayerAir;
-                    }
-                    if( pStateCheck(player->p_state, PS_OnWall) ){
 
-                        //if(player->rect.position.x > state->win_width/2.f){
-                        if(player->rect.position.x > frame_buff_w/2.f){
-                            player->velocity.x = -350;
-                            player->velocity.y = 450;
-                        }else{
-                            player->velocity.x = 350;
-                            player->velocity.y = 450;
+            if(state->paused == false){
+                if(state->dead == false){
+                    if(event->button.button == SDL_BUTTON_LEFT){
+                        if( !pStateCheck(player->p_state, PS_InAir) ){
+                            player->velocity.y = 550;
+                            pStateSet(&player->p_state, PS_InAir);
+                            player->texture_enum = Texture_PlayerAir;
                         }
-                        pStateClear(&player->p_state, PS_OnWall);
-                        player->texture_enum = Texture_PlayerAir;
+                        if( pStateCheck(player->p_state, PS_OnWall) ){
+
+                            //if(player->rect.position.x > state->win_width/2.f){
+                            if(player->rect.position.x > frame_buff_w/2.f){
+                                player->velocity.x = -350;
+                                player->velocity.y = 450;
+                            }else{
+                                player->velocity.x = 350;
+                                player->velocity.y = 450;
+                            }
+                            pStateClear(&player->p_state, PS_OnWall);
+                            player->texture_enum = Texture_PlayerAir;
+                        }
+                    }else if(event->button.button == SDL_BUTTON_RIGHT){
+                        if(SDL_GetRelativeMouseMode() == SDL_FALSE){
+                            SDL_SetRelativeMouseMode(SDL_TRUE); 
+                            state->focused = true;
+                        }else {
+                            SDL_SetRelativeMouseMode(SDL_FALSE); 
+                            state->focused = false;
+                        }
                     }
-                }else if(event->button.button == SDL_BUTTON_RIGHT){
-                    if(SDL_GetRelativeMouseMode() == SDL_FALSE){
-                        SDL_SetRelativeMouseMode(SDL_TRUE); 
-                        state->focused = true;
-                    }else {
-                        SDL_SetRelativeMouseMode(SDL_FALSE); 
-                        state->focused = false;
-                    }
+                } else {
+                    state->dead = false;
+                    resetStateAfterDeath(state);
                 }
-            } else {
-                state->dead = false;
-                resetStateAfterDeath(state);
-            }
+          }else{
+                state->paused = false;
+          }
+
         }break;
 
         case SDL_MOUSEBUTTONUP:
@@ -1076,11 +1240,33 @@ static void spawnSpike(GameState* state, float dt)
     }
 }
 
+static void tickHighScoreAnim(GameState* state, float dt)
+{
+    if(state->new_hscore == true){
+        if(state->hscore_anim.fading){
+            if(state->hscore_anim.color.a > 0){
+                state->hscore_anim.color.a -= 0.3f*dt;
+                //if(state->hscore_anim.color.a <= 0)
+                //    state->hscore_anim.fading = false;
+            }
+        }
+        else{
+            if(state->hscore_anim.color.a < 1)
+                state->hscore_anim.color.a += 0.9f*dt;  
+            if(state->hscore_anim.color.a >= 1)
+                    state->hscore_anim.fading = true;
+        }
+    }
+}
+
 extern "C"
 void processTick(GameState* state, float dt)
 {
-    if(state->score > state->high_score) state->high_score = state->score;
-    if(state->dead == false){
+    if(state->score > state->high_score) {
+        state->high_score = state->score;
+        state->new_hscore = true;
+    }
+    if(state->dead == false && state->paused == false){
         Entity* player = &state->entities[E_Player];
         if( !pStateCheck(player->p_state, PS_OnWall) && state->accel != NULL){
             int16 xaxis = SDL_JoystickGetAxis(state->accel, 0);
@@ -1126,5 +1312,6 @@ void processTick(GameState* state, float dt)
         }
         spawnSpike(state, dt);
         spawnAlarm(state, dt);
+        tickHighScoreAnim(state, dt);
     }
 }

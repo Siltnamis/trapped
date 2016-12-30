@@ -5,6 +5,15 @@
     #include "SDL.h"
     #include <GLES2/gl2.h>
     #include <GLES2/gl2ext.h>
+
+//admob shit
+/*
+#include "firebase/admob.h"
+#include "firebase/admob/types.h"
+#include "firebase/app.h"
+#include "firebase/future.h"
+*/
+
 #else
     #include <SDL2/SDL.h>
     #include <GL/glew.h>
@@ -12,9 +21,10 @@
     #define AV_LIB_IMPLEMENTATION
     #include "av.h"
     #undef AV_LIB_IMPLEMENTATION
+
 #endif
 
-#include "avmath.h"
+#include "av/avmath.h"
 #include "Texture.h"
 #include "ShaderProgram.h"
 
@@ -22,7 +32,7 @@
 #define MAX_DIGITS 5 
 
 enum Entity_Enum    { E_Player, E_Enemy, E_Max};
-enum Shader_Enum    { Shader_Default, Shader_Max };
+enum Shader_Enum    { Shader_Default, Shader_Text, Shader_Max };
 enum Shape_Enum     { Shape_Rect, Shape_Max };
 enum Texture_Enum   { Texture_Default, Texture_PlayerGround, Texture_PlayerAir, 
                         Texture_PlayerDead, Texture_EnemyR, Texture_EnemyL, 
@@ -31,9 +41,13 @@ enum Texture_Enum   { Texture_Default, Texture_PlayerGround, Texture_PlayerAir,
                         Texture_Digit3, Texture_Digit4, Texture_Digit5,
                         Texture_Digit6, Texture_Digit7, Texture_Digit8,
                         Texture_Digit9, Texture_Score, Texture_HScore,
+                        Texture_HScoreGZ,
                         Texture_Wall, Texture_BackGround, 
                         Texture_FB, 
                         Texture_DeathScreen,
+                        Texture_Name,
+                        Texture_Paused,
+                        Texture_Text,
                         Texture_Max };
 enum Control_Enum   { CM_Jump, CM_Back, CM_Right, CM_Left };
 enum PState_Enum    { PS_InAir, PS_OnWall, PS_OnLeftWall, PS_OnRightWall };
@@ -181,12 +195,26 @@ struct GSpike
     bool    retract;
 };
 
+struct HighScore
+{
+    int     shader_enum;
+    int     shape_enum;
+    int     texture_enum;
+    Rect    rect;
+    vec4    color;
+    bool    play_hs_anim;
+    bool    fading;
+};
+
 #define MAX_ENTITIES 200
 struct GameState
 {
     bool            quit; //possibly encode other states (menu/death/etc..)
     bool            focused; //  pack everything into int
     bool            dead;
+    bool            new_hscore;
+    bool            paused;
+    HighScore       hscore_anim;
 
     int             score;
     int             high_score;
