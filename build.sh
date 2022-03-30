@@ -1,3 +1,4 @@
+#!/bin/sh
 LIB_FILES="src/Texture.cpp src/ShaderProgram.cpp src/Game.cpp"
 LIB_OPTIONS="-lSD2 -lGLEW -lGL -ldl -lfPIC -shared -o game.so -g"
 GAME_OPTIONS="-lSD2 -lGLEW -lGL -ldl -o game -g"
